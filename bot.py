@@ -7,7 +7,7 @@ from datetime import datetime
 from events import ChatEvent, ChatEventType, DelayedPriorityQueue
 from text import generate_sentence
 from twitchio import Channel, Message, PartialChatter, User, channel
-from twitchio.ext.commands import Bot
+from twitchio.ext.commands import Bot, Cog, command, Context
 from twitchio.ext.routines import routine
 from twitchio.notice import UserNotice
 
@@ -25,14 +25,14 @@ class __Bot(Bot):
 
     def __init__(self, twitch_access_token, channels: Iterable[str]):
         self._msg_queue: DelayedPriorityQueue = DelayedPriorityQueue(maxsize=0, delay=1000 * 4)
-        self.__ignored_users = { x.lower(): deepcopy(_GLOBALLY_IGNORED) for x in channels }
+        self._ignored_users = { x.lower(): deepcopy(_GLOBALLY_IGNORED) for x in channels }
         self.__censored_messages = {x.lower(): set() for x in channels }
         for x in channels:
             fn = f"{x}.ban.log"
             if exists(fn):
                 with open(fn, "r") as f:
                     for ln in f:
-                        self.__ignored_users[x].add(ln)
+                        self._ignored_users[x].add(ln)
 
         super().__init__(twitch_access_token, prefix='$', initial_channels=channels)
 
@@ -72,6 +72,7 @@ class __Bot(Bot):
         for x in self.connected_channels:
             try:
                 fmt = generate_sentence([x.name])
+                print(f"<msg='{fmt}'>")
                 streams = (await self.fetch_streams(user_logins=[x.name]))
                 if len(streams) > 0:
                     await self.get_channel(x.name).send(fmt)
@@ -87,7 +88,7 @@ class __Bot(Bot):
                     chatter: User = await item.payload[0].user()
                     channel: Channel = item.payload[1] 
 
-                    self.__ignored_users[channel.name].add(chatter.id)
+                    self._ignored_users[channel.name].add(chatter.id)
                     with open(f"{channel.name}.bans.log", "a") as f:
                         f.write(f"{chatter.id}\n")
 
@@ -98,7 +99,7 @@ class __Bot(Bot):
 
                 case ChatEventType.Message:
                     msg: Message = item.payload
-                    if msg.echo or msg.author.id in self.__ignored_users:
+                    if msg.echo or msg.author.id in self._ignored_users:
                         continue
                     if msg.id in self.__censored_messages:
                         self.__censored_messages.pop(msg.id)
