@@ -1,19 +1,22 @@
 #!/usr/bin/python3
 from datetime import datetime
-from typing import List, Set
+from functools import reduce
+from os.path import exists
+from typing import Any, Dict, List, Set
 from collections import Counter
-from markovify import NewlineText as markovifyDataset
+from markovify import NewlineText as MarkovDataset, combine as markov_combine
+from csv import reader
 
 class DataLine:
 
-    def __init__(self, line : str):
-        x = { k: v for k, v in enumerate(line.split(sep=',')) }
+    def __init__(self, line : List[str]):
+        x = { k: v for k, v in enumerate(line) }
         self._channel = x.get(0)
         self._author = x.get(1)
         self._msg_id = x.get(2)
-        self.__raw_string = x.get(3)
-        self._msg = self.__normalize(x.get(3))
-        self._timestamp = x.get(4)
+        self._timestamp = x.get(3)
+        self.__raw_string = x.get(4)
+        self._msg = self.__normalize(x.get(4))
 
     @property
     def msg_id(self) -> str:
@@ -49,14 +52,15 @@ class DataSet:
     def __init__(self, data: List[DataLine]):
         self._data = data
         self._lengths = Counter()
+        self.__occurrences = Counter()
         self._corpus = ""
         for x in data:
             words = x.message.split()
             if len(x.message) == 0 or len(words) == 0:
                 continue
             self._corpus += x.message + "\n"
+            self.__occurrences.update(words)
         self.lengths.update([len(x.message.split()) for x in data if len(x.message.split()) > 0])
-
 
     @property
     def corpus(self) -> str:
@@ -71,29 +75,33 @@ class DataSet:
         return self._lengths
 
     @property
+    def occurrences(self) -> Counter:
+        return self.__occurrences
+
+    @property
     def _raw(self) -> List[DataLine]:
         return self._data
 
     def merge(self, other: 'DataSet'):
         return DataSet(self._raw + other._raw)
 
-def generate_sentence(datasets_to_use: List[str], weights: List[float] = [1.0]) -> str:
-    if len(datasets_to_use) == 0:
+def generate_sentence(datasets: Dict[str, float],
+                      chain_length = 1) -> str:
+    if len(datasets) == 0:
         raise ValueError()
 
-    data: DataSet
-    with open(f"{datasets_to_use[0]}.data.log", 'r') as f:
-        data = DataSet([DataLine(x) for x in f.readlines()])
+    data: List[DataSet] = []
+    weights: List[float] = []
+    for s, w in datasets.items():
+        if exists(f"{s}.data.csv"):
+            with open(f"{s}.data.csv", 'r') as f:
+                data.append(DataSet([DataLine(x) for x in reader(f.readlines())]))
+                weights.append(w)
 
-    for i in range(1, len(datasets_to_use)):
-        dataset = datasets_to_use[i]
-        with open(f"{dataset}.data.log", 'r') as f:
-            data.merge(DataSet([DataLine(x) for x in f.readlines()]))
+    big_data = reduce(lambda x, y: x.merge(y), data)
+    markov_data = markov_combine(models=[MarkovDataset(x.corpus, state_size=chain_length) for x in data], weights=weights)
 
-    markov_data = markovifyDataset(data.corpus)
-
-    x = None
-    while x is None:
-        x = markov_data.make_sentence(tries=100, min_words=min(data.lengths), max_words=max(data.lengths))
-
-    return x
+    return markov_data.make_sentence(tries=10000,
+                                     min_words=min(big_data.lengths),
+                                     max_words=max(big_data.lengths),
+                                     test_output=False)
