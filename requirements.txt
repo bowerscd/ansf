@@ -1,1 +1,2 @@
 markovify == 0.9
+twitchio ~= 2.5

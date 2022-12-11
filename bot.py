@@ -10,7 +10,6 @@ from re import compile
 from text import generate_sentence
 from twitchio import Channel, Message, PartialChatter
 from twitchio.ext.commands import Bot, Cog, Context, command
-from twitchio.notice import UserNotice
 
 _GLOBALLY_IGNORED={
     100135110, # StreamElements
@@ -412,9 +411,8 @@ class __Bot(Bot):
 
         await self.setting(msg.channel.name).enqueue_message(msg)
 
-    async def event_usernotice_subscription(self, notice: UserNotice) -> None:
-        if  notice.message is not None and len(notice.message.content) > 0:
-            await self.setting(notice.channel.name).enqueue_message(notice.message)
+    async def event_usernotice_subscription(self, metadata) -> None:
+        print(metadata)
 
     async def event_clearchat(self, chatter: PartialChatter, channel: Channel, tags: dict):
         await self.setting(channel.name).enqueue_ban((await chatter.user()).id)
