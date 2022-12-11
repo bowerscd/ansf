@@ -16,6 +16,8 @@ def __main():
     g1.add_argument("--bot", "-b", action='store_true')
     g1.add_argument("--convert", action="store_true")
     bot_grp = arg.add_argument_group('bot options')
+    bot_grp.add_argument("--approot", "-ar", action="store", type=str, default="./")
+    bot_grp.add_argument("--dataroot", "-dr", action="store", type=str, default="./")
     bot_grp.add_argument("--access-token", "-at", action="store", type=str, default=getenv("ASNF_TOKEN"))
     bot_grp.add_argument("--refresh-token", "-rt", action="store",  type=str, default=getenv("ASNF_REFRESH"))
     bot_grp.add_argument("--client-id", "-id", action="store", type=str, default=getenv("ASNF_CLIENT_ID"))
@@ -26,7 +28,7 @@ def __main():
     if argv.text:
         print(f"{generate_sentence({ ch: 1.0 for ch in argv.channel })}")
     elif argv.bot:
-        start_bot(argv.access_token, argv.channel, argv.super_user)
+        start_bot(argv.approot, argv.dataroot, argv.access_token, argv.channel, argv.super_user)
     elif argv.convert:
         from csv import writer
         for ch in argv.channel:
