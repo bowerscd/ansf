@@ -30,13 +30,14 @@ _REMOVE_MENTION = compile(r"\s*@[A-Z0-9a-z_]+\s*")
 class ChannelSetting:
 
     @staticmethod
-    def from_json_file(f: str) -> 'ChannelSetting':
+    def from_json_file(f: str, dataroot: str) -> 'ChannelSetting':
         j: Dict
         with open(f, 'r') as f:
             j = load(f)
+        j['dataroot'] = dataroot
         return ChannelSetting(**j)
 
-    def __init__(self, channel, **kwargs):
+    def __init__(self, channel, dataroot, **kwargs):
         self.__channel_name = channel
         self.__die = False
 
@@ -48,6 +49,8 @@ class ChannelSetting:
 
         # set to avoid sending same message twice
         self.__messages_sent = set()
+
+        self.__dataroot = dataroot
 
         # markov model options
         # channel influences
@@ -143,7 +146,8 @@ class ChannelSetting:
 
         This is run synchronously.
         """
-        with open(f"{self.__channel_name}.data.csv", 'a') as f:
+        from os.path import join
+        with open(join(self.__dataroot, f"{self.__channel_name}.data.csv"), 'a') as f:
             csv = writer(f)
             csv.writerow([msg.channel.name,
                           msg.author.id,
@@ -372,10 +376,14 @@ class ChatterModule(Cog):
 
 class __Bot(Bot):
 
-    def __init__(self, twitch_access_token, participants: Iterable[str], host: str):
+    def __init__(self, twitch_access_token, approot: str, dataroot:str , participants: Iterable[str], host: str):
+        from os.path import join
+
         super().__init__(twitch_access_token, prefix='$', initial_channels=participants)
         self._host = host
-        self._settings = { x: ChannelSetting.from_json_file(f'{x}.settings.json') if exists(f'{x}.settings.json') else ChannelSetting(x) for x in participants} 
+
+        setting_files = { x: join(approot, f'{x}.settings.json') for x in participants }
+        self._settings = { channel: ChannelSetting.from_json_file(setting, dataroot) if exists(setting) else ChannelSetting(channel, dataroot) for channel, setting in setting_files.items() }
 
     def setting(self, channel: str) -> ChannelSetting:
         return self._settings[channel]
@@ -426,6 +434,6 @@ class __Bot(Bot):
         await gather(*self.__save_tasks)
         await super().close()
 
-def start_bot(access_token: str, channels: List[str], super_user : str) -> None:
-    bot = __Bot(access_token, channels, super_user)
+def start_bot(approot: str, dataroot: str, access_token: str, channels: List[str], super_user : str) -> None:
+    bot = __Bot(access_token, approot, dataroot, channels, super_user)
     bot.run()
