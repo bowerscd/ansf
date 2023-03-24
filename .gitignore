@@ -3,3 +3,6 @@
 **/__pycache__/
 *.json
 *.csv
+.vscode
+.reference/
+.python-version

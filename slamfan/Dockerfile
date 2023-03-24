@@ -5,4 +5,4 @@ WORKDIR /app/
 
 RUN pip install -r requirements.txt
 
-ENTRYPOINT [ "python", "/app/main.py", "-b" ]
+ENTRYPOINT [ "python", "/app/__main__.py" ]
