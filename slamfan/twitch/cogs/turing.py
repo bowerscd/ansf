@@ -177,7 +177,7 @@ class Turing(CogBase):
 
                 rnd_delay = randint(self.__msg_delay[0], self.__msg_delay[1])
 
-                while delay < (rnd_delay // 20):
+                while delay < rnd_delay:
 
                     if self._die.is_set():
                         return
