@@ -17,6 +17,7 @@ _GLOBALLY_IGNORED_={
     "19264788",  # Nightbot
     "786049415", # SpectatorDashboard
     "95174992",  # MembTVBot
+    "854854747", # RoboAOE
 }
 
 class Turing(CogBase):

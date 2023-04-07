@@ -2,7 +2,7 @@ import asyncio
 from hashlib import sha384
 from uuid import UUID
 from datetime import datetime, timedelta
-from typing import Dict, Awaitable
+from typing import Dict, Awaitable, Any
 from turing import Corpus
 
 from aiorwlock import RWLock
@@ -118,8 +118,40 @@ class DatabaseBroker(object):
                                 """, (timestamp, channel, sha384(str(uid).encode()).hexdigest()))
         self.__conn.commit()
 
-    async def p(self):
-        pass
+    async def increment_trivia_score(self, uid: int, score: int) -> None:
+        self.__conn.execute("""
+            INSERT OR IGNORE INTO TriviaLeaderboard(
+                User,
+                Score,
+                CorrectQuestions
+            ) VALUES (?, 0, 0)
+        """, (sha384(str(uid).encode()).hexdigest(),))
+        self.__conn.execute("""
+            UPDATE TriviaLeaderboard SET
+                Score = Score + ?,
+                CorrectQuestions = CorrectQuestions + 1
+            WHERE (
+                User = ?
+            )
+        """, (score, sha384(str(uid).encode()).hexdigest()))
+        self.__conn.commit()
+
+    async def get_trivia_stats(self, uid: int) -> tuple[Any, Any, Any]:
+        return self.__conn.execute("""
+            SELECT 
+                Rank,
+                Score,
+                CorrectQuestions
+            FROM (
+                    SELECT 
+                        *,
+                        ROW_NUMBER() OVER (ORDER BY Score DESC) AS Rank
+                    FROM
+                        TriviaLeaderboard
+                )
+            WHERE
+                User = ?
+        """, (sha384(str(uid).encode()).hexdigest(),)).fetchone()
 
     async def connect(self) -> None:
         from sqlite3 import connect
@@ -167,6 +199,14 @@ class DatabaseBroker(object):
                 EndTime     DATETIME
             )
             """)
+        self.__conn.execute("""
+            CREATE TABLE IF NOT EXISTS TriviaLeaderboard(
+                Id               INTEGER PRIMARY KEY AUTOINCREMENT,
+                User             TEXT UNIQUE,
+                Score            INTEGER,
+                CorrectQuestions INTEGER
+            )
+        """)
         self.__conn.commit()
 
         # Load messages into memory

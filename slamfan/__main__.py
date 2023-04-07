@@ -39,30 +39,37 @@ def __add_bot_args(parser: ArgumentParser) -> ArgumentParser:
     return parser
 
 async def __bot_main(argv: Namespace):
-    from brokers import DatabaseBroker
-    from twitch import Admin, Turing
+    from brokers import DatabaseBroker, DashboardBroker
+    from twitch import Admin, Turing, Trivia
     from twitch import TwitchBot
     try:
-        async with asyncio.TaskGroup() as tg: #, DashboardBroker() as dash:
+        async with asyncio.TaskGroup() as tg:
             su = argv.superuser.lower()
             dbm = DatabaseBroker(tg, argv.database)
             await dbm.connect()
+
 
             while True:
                 am = Admin(su)
 
                 # Turing Bot
-                ansf: TwitchBot = TwitchBot(argv.turing_token, '$', [su] + argv.channels)
+                ansf: TwitchBot = TwitchBot(argv.turing_token, '!', [su] + argv.channels)
                 ansf.add_cog(am)
                 ansf.add_cog(Turing(su, dbm, tg))
 
-                async with ansf:
-                    await am.die_event.wait()
+                # robo
+                async with DashboardBroker(tg) as dash, Trivia(su, dash, dbm, tg) as trivia:
+                    robo: TwitchBot = TwitchBot(argv.robo_token, '!', argv.channels)
+                    robo.add_cog(am)
+                    robo.add_cog(trivia)
 
-                    if am.restart_event.is_set():
-                        continue
+                    async with robo, ansf:
+                        await am.die_event.wait()
 
-                    return
+                        if am.restart_event.is_set():
+                            continue
+
+                        return
 
     except asyncio.CancelledError:
         print("cancelled")
