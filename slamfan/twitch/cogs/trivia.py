@@ -2,7 +2,7 @@ import asyncio
 
 from twitchio.ext.commands import Cog, Context, command
 from twitchio import Message, Chatter, Channel, User
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Set
 from re import compile as regex
 from random import shuffle, choice
 from aiohttp import ClientSession
@@ -27,6 +27,7 @@ class TriviaQuestion(object):
         self.__q = q
         self.__multiple_choice = len(a_pool) > 2
         self.__formatted: Dict[str, str] | None = None
+        self.__answerers: Set[int] = set()
 
         if self.__multiple_choice:
             shuffle(a_pool)
@@ -35,7 +36,12 @@ class TriviaQuestion(object):
         else:
             self.__answer = a
 
-    def is_correct(self, answer: str) -> bool:
+    def is_correct(self, answer: str, answerer: int) -> bool:
+        if answerer in self.__answerers:
+            pass
+
+        self.__answerers.add(answerer)
+
         if self.__multiple_choice:
             return answer.lower() == self.__answer.lower()
 
@@ -133,7 +139,7 @@ class Trivia(CogBase):
 
     def __init__(self, super_user: str, dashboard: DashboardBroker, dbm: DatabaseBroker, tg: asyncio.TaskGroup):
         """
-        Initialization. 
+        Initialization.
 
         :paramref: `super_user`: the username of the super user who
                     will be used for 'BotHost' permissions.
@@ -171,7 +177,7 @@ class Trivia(CogBase):
 
     async def trivia_main(self, channel: Channel):
         """
-        
+
         """
         try:
             player_name = __TWITCH_TO_DASHBOARD_NAME__.get(channel.name, channel.name)
@@ -190,15 +196,16 @@ class Trivia(CogBase):
                 while self.__active_messages[channel.name][2] < self.__trivia_time:
                     if self._die.is_set():
                         return
-                    
+
                     if self.__active_messages[channel.name][0].is_set():
                         break
 
-                    await asyncio.sleep(0.1)
                     self.__active_messages[channel.name][2] += 0.1
+                    await asyncio.sleep(0.1)
 
                 # no one got the answer, report the right answer
                 if not self.__active_messages[channel.name][0].is_set():
+                    self.__active_messages[channel.name][0].set()
                     await channel.send(f"The correct answer was: {self.__active_messages[channel.name][1].answer}")
 
                 # Wait until the next quesiton can be asked
@@ -238,7 +245,7 @@ class Trivia(CogBase):
         if len(args) < 2:
             return
 
-        if v[1].is_correct(args[1]):
+        if v[1].is_correct(args[1], ctx.author.id):
             v[0].set()
             time_remaining = self.__trivia_delay - v[2]
             score_increase = round(5.0 * time_remaining)
